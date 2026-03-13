@@ -1,0 +1,8 @@
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_123","type":"function_call","status":"completed","call_id":"call_123","name":"run_shell_command","arguments":"{\"command\":\"pwd\"}"}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":1,"item":{"id":"msg_123","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"All set."}]}}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_123","object":"response","status":"completed","output":[{"id":"fc_123","type":"function_call","status":"completed","call_id":"call_123","name":"run_shell_command","arguments":"{\"command\":\"pwd\"}"},{"id":"msg_123","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"All set."}]}]}}

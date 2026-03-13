@@ -1,0 +1,13 @@
+{
+  "id": "msg_done_01",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "All changes are complete."
+    }
+  ],
+  "stop_reason": "end_turn"
+}

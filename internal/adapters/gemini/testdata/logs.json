@@ -1,0 +1,74 @@
+{
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "instance.role",
+            "value": {
+              "stringValue": "Architect"
+            }
+          },
+          {
+            "key": "session.id",
+            "value": {
+              "stringValue": "session-123"
+            }
+          }
+        ]
+      },
+      "scopeLogs": [
+        {
+          "logRecords": [
+            {
+              "timeUnixNano": "1000000000",
+              "body": {
+                "stringValue": "gemini_cli.user_prompt"
+              },
+              "attributes": [
+                {
+                  "key": "prompt",
+                  "value": {
+                    "stringValue": "Reply with exactly: GEMINI_OTEL_TEST"
+                  }
+                }
+              ]
+            },
+            {
+              "timeUnixNano": "2000000000",
+              "body": {
+                "stringValue": "gemini_cli.tool_call"
+              },
+              "attributes": [
+                {
+                  "key": "function_name",
+                  "value": {
+                    "stringValue": "run_shell_command"
+                  }
+                },
+                {
+                  "key": "function_args",
+                  "value": {
+                    "stringValue": "{\"command\":\"echo GEMINI_TOOL_TEST\"}"
+                  }
+                },
+                {
+                  "key": "decision",
+                  "value": {
+                    "stringValue": "allow"
+                  }
+                },
+                {
+                  "key": "tool_type",
+                  "value": {
+                    "stringValue": "function"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

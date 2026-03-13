@@ -1,0 +1,27 @@
+{
+  "model": "gpt-5",
+  "stream": true,
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "Reply with exactly: CODEX_GATEWAY_TEST"
+        }
+      ]
+    },
+    {
+      "type": "function_call_output",
+      "call_id": "call_123",
+      "output": "{\"stdout\":\"ok\"}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "name": "run_shell_command",
+      "description": "Run a shell command"
+    }
+  ]
+}

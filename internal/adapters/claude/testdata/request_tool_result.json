@@ -1,0 +1,39 @@
+{
+  "model": "claude-sonnet-4-5",
+  "max_tokens": 2048,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Find the current working directory."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_req_01",
+          "name": "bash",
+          "input": {
+            "command": "pwd"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_req_01",
+          "content": "C:\\Nexis",
+          "is_error": false
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "bash"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "instance.role",
+            "value": {
+              "stringValue": "Architect"
+            }
+          },
+          {
+            "key": "session.id",
+            "value": {
+              "stringValue": "session-123"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "name": "llm_call",
+              "endTimeUnixNano": "3000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.output.messages",
+                  "value": {
+                    "stringValue": "[{\"parts\":[{\"text\":\"I will run a shell command. \"},{\"name\":\"run_shell_command\",\"arguments\":{\"command\":\"echo GEMINI_TOOL_TEST\"}}]}]"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "tool_call",
+              "endTimeUnixNano": "4000000000",
+              "attributes": [
+                {
+                  "key": "request.name",
+                  "value": {
+                    "stringValue": "run_shell_command"
+                  }
+                },
+                {
+                  "key": "request.callId",
+                  "value": {
+                    "stringValue": "call-1"
+                  }
+                },
+                {
+                  "key": "request.args.command",
+                  "value": {
+                    "stringValue": "echo GEMINI_TOOL_TEST"
+                  }
+                },
+                {
+                  "key": "request.args.description",
+                  "value": {
+                    "stringValue": "Printing GEMINI_TOOL_TEST"
+                  }
+                },
+                {
+                  "key": "status",
+                  "value": {
+                    "stringValue": "success"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "llm_call",
+              "endTimeUnixNano": "5000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.output.messages",
+                  "value": {
+                    "stringValue": "[{\"parts\":[{\"text\":\"internal thought\",\"thought\":true}]},{\"parts\":[{\"text\":\"GEMINI_TOOL_DONE\"}]}]"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

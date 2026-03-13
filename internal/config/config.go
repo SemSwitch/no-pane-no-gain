@@ -21,19 +21,26 @@ type Config struct {
 	Summarizer SummarizerConfig `json:"summarizer"`
 	Pipeline   PipelineConfig   `json:"pipeline"`
 	TTS        TTSConfig        `json:"tts"`
+	Speech     SpeechConfig     `json:"speech"`
 	HTTP       HTTPConfig       `json:"http"`
 	Log        LogConfig        `json:"log"`
 }
 
 type AppConfig struct {
-	Name    string `json:"name"`
-	DataDir string `json:"data_dir"`
+	Name       string `json:"name"`
+	HomeDir    string `json:"home_dir"`
+	DataDir    string `json:"data_dir"`
+	DBPath     string `json:"db_path"`
+	RuntimeDir string `json:"runtime_dir"`
+	LogsDir    string `json:"logs_dir"`
 }
 
 type NATSConfig struct {
 	URL            string   `json:"url"`
 	SubjectRoot    string   `json:"subject_root"`
 	Queue          string   `json:"queue"`
+	StreamName     string   `json:"stream_name"`
+	StoreDir       string   `json:"store_dir"`
 	ConnectTimeout Duration `json:"connect_timeout"`
 	ReconnectWait  Duration `json:"reconnect_wait"`
 	MaxReconnects  int      `json:"max_reconnects"`
@@ -48,12 +55,25 @@ type SummarizerConfig struct {
 }
 
 type PipelineConfig struct {
-	Channels []string `json:"channels"`
+	Channels         []string `json:"channels"`
+	ReconcileTimeout Duration `json:"reconcile_timeout"`
 }
 
 type TTSConfig struct {
-	Voice     string `json:"voice"`
-	MaxQueued int    `json:"max_queued"`
+	Voice          string   `json:"voice"`
+	MaxQueued      int      `json:"max_queued"`
+	DefaultBackend string   `json:"default_backend"`
+	WindowsVoice   string   `json:"windows_voice"`
+	GoogleAPIKey   string   `json:"google_api_key"`
+	GoogleVoice    string   `json:"google_voice"`
+	LeaseTTL       Duration `json:"lease_ttl"`
+	PollInterval   Duration `json:"poll_interval"`
+}
+
+type SpeechConfig struct {
+	DefaultMode     string `json:"default_mode"`
+	ConciseMaxChars int    `json:"concise_max_chars"`
+	NormalMaxChars  int    `json:"normal_max_chars"`
 }
 
 type HTTPConfig struct {
@@ -99,8 +119,12 @@ func Load(path string) (Config, error) {
 func Default() Config {
 	return Config{
 		App: AppConfig{
-			Name:    "nexis-echo",
-			DataDir: defaultDataDir(),
+			Name:       "nexis-echo",
+			HomeDir:    defaultHomeDir(),
+			DataDir:    filepath.Join(defaultHomeDir(), "data"),
+			DBPath:     filepath.Join(defaultHomeDir(), "data", "echo.db"),
+			RuntimeDir: filepath.Join(defaultHomeDir(), "runtime"),
+			LogsDir:    filepath.Join(defaultHomeDir(), "logs"),
 		},
 		NATS: NATSConfig{
 			URL:            "nats://127.0.0.1:4222",
@@ -108,6 +132,8 @@ func Default() Config {
 			ConnectTimeout: Duration(5 * time.Second),
 			ReconnectWait:  Duration(2 * time.Second),
 			MaxReconnects:  -1,
+			StreamName:     "ECHO",
+			StoreDir:       filepath.Join(defaultHomeDir(), "runtime", "nats"),
 		},
 		Summarizer: SummarizerConfig{
 			MaxBatchSize: 32,
@@ -117,11 +143,22 @@ func Default() Config {
 			MinInterval:  Duration(100 * time.Millisecond),
 		},
 		Pipeline: PipelineConfig{
-			Channels: []string{"local"},
+			Channels:         []string{"local"},
+			ReconcileTimeout: Duration(2 * time.Second),
 		},
 		TTS: TTSConfig{
-			Voice:     "default",
-			MaxQueued: 32,
+			Voice:          "default",
+			MaxQueued:      32,
+			DefaultBackend: "windows",
+			WindowsVoice:   "",
+			GoogleVoice:    "en-US-Standard-J",
+			LeaseTTL:       Duration(10 * time.Minute),
+			PollInterval:   Duration(750 * time.Millisecond),
+		},
+		Speech: SpeechConfig{
+			DefaultMode:     "normal",
+			ConciseMaxChars: 220,
+			NormalMaxChars:  600,
 		},
 		HTTP: HTTPConfig{
 			Addr:            "127.0.0.1:8600",
@@ -191,11 +228,17 @@ func loadFile(path string, cfg *Config) error {
 
 func applyEnv(cfg *Config) error {
 	applyEnvString(envPrefix+"APP_NAME", &cfg.App.Name)
+	applyEnvString(envPrefix+"HOME", &cfg.App.HomeDir)
 	applyEnvString(envPrefix+"DATA_DIR", &cfg.App.DataDir)
+	applyEnvString(envPrefix+"APP_DB_PATH", &cfg.App.DBPath)
+	applyEnvString(envPrefix+"APP_RUNTIME_DIR", &cfg.App.RuntimeDir)
+	applyEnvString(envPrefix+"APP_LOGS_DIR", &cfg.App.LogsDir)
 
 	applyEnvString(envPrefix+"NATS_URL", &cfg.NATS.URL)
 	applyEnvString(envPrefix+"NATS_SUBJECT_ROOT", &cfg.NATS.SubjectRoot)
 	applyEnvString(envPrefix+"NATS_QUEUE", &cfg.NATS.Queue)
+	applyEnvString(envPrefix+"NATS_STREAM_NAME", &cfg.NATS.StreamName)
+	applyEnvString(envPrefix+"NATS_STORE_DIR", &cfg.NATS.StoreDir)
 
 	if err := applyEnvDuration(envPrefix+"NATS_CONNECT_TIMEOUT", &cfg.NATS.ConnectTimeout); err != nil {
 		return err
@@ -226,10 +269,31 @@ func applyEnv(cfg *Config) error {
 	if err := applyEnvCSV(envPrefix+"PIPELINE_CHANNELS", &cfg.Pipeline.Channels); err != nil {
 		return err
 	}
+	if err := applyEnvDuration(envPrefix+"PIPELINE_RECONCILE_TIMEOUT", &cfg.Pipeline.ReconcileTimeout); err != nil {
+		return err
+	}
 
 	applyEnvString(envPrefix+"TTS_VOICE", &cfg.TTS.Voice)
+	applyEnvString(envPrefix+"TTS_DEFAULT_BACKEND", &cfg.TTS.DefaultBackend)
+	applyEnvString(envPrefix+"TTS_WINDOWS_VOICE", &cfg.TTS.WindowsVoice)
+	applyEnvString(envPrefix+"TTS_GOOGLE_API_KEY", &cfg.TTS.GoogleAPIKey)
+	applyEnvString(envPrefix+"TTS_GOOGLE_VOICE", &cfg.TTS.GoogleVoice)
 
 	if err := applyEnvInt(envPrefix+"TTS_MAX_QUEUED", &cfg.TTS.MaxQueued); err != nil {
+		return err
+	}
+	if err := applyEnvDuration(envPrefix+"TTS_LEASE_TTL", &cfg.TTS.LeaseTTL); err != nil {
+		return err
+	}
+	if err := applyEnvDuration(envPrefix+"TTS_POLL_INTERVAL", &cfg.TTS.PollInterval); err != nil {
+		return err
+	}
+
+	applyEnvString(envPrefix+"SPEECH_DEFAULT_MODE", &cfg.Speech.DefaultMode)
+	if err := applyEnvInt(envPrefix+"SPEECH_CONCISE_MAX_CHARS", &cfg.Speech.ConciseMaxChars); err != nil {
+		return err
+	}
+	if err := applyEnvInt(envPrefix+"SPEECH_NORMAL_MAX_CHARS", &cfg.Speech.NormalMaxChars); err != nil {
 		return err
 	}
 
@@ -260,25 +324,71 @@ func applyEnv(cfg *Config) error {
 
 func normalize(cfg *Config) error {
 	cfg.App.Name = strings.TrimSpace(cfg.App.Name)
+	cfg.App.HomeDir = strings.TrimSpace(cfg.App.HomeDir)
 	cfg.App.DataDir = strings.TrimSpace(cfg.App.DataDir)
+	cfg.App.DBPath = strings.TrimSpace(cfg.App.DBPath)
+	cfg.App.RuntimeDir = strings.TrimSpace(cfg.App.RuntimeDir)
+	cfg.App.LogsDir = strings.TrimSpace(cfg.App.LogsDir)
 	cfg.NATS.URL = strings.TrimSpace(cfg.NATS.URL)
 	cfg.NATS.SubjectRoot = strings.Trim(cfg.NATS.SubjectRoot, ". ")
 	cfg.NATS.Queue = strings.TrimSpace(cfg.NATS.Queue)
+	cfg.NATS.StreamName = strings.TrimSpace(cfg.NATS.StreamName)
+	cfg.NATS.StoreDir = strings.TrimSpace(cfg.NATS.StoreDir)
 	cfg.Summarizer.Provider = strings.ToLower(strings.TrimSpace(cfg.Summarizer.Provider))
 	cfg.TTS.Voice = strings.TrimSpace(cfg.TTS.Voice)
+	cfg.TTS.DefaultBackend = strings.ToLower(strings.TrimSpace(cfg.TTS.DefaultBackend))
+	cfg.TTS.WindowsVoice = strings.TrimSpace(cfg.TTS.WindowsVoice)
+	cfg.TTS.GoogleAPIKey = strings.TrimSpace(cfg.TTS.GoogleAPIKey)
+	cfg.TTS.GoogleVoice = strings.TrimSpace(cfg.TTS.GoogleVoice)
+	cfg.Speech.DefaultMode = strings.ToLower(strings.TrimSpace(cfg.Speech.DefaultMode))
 	cfg.HTTP.Addr = strings.TrimSpace(cfg.HTTP.Addr)
 	cfg.HTTP.WebSocketPath = strings.TrimSpace(cfg.HTTP.WebSocketPath)
 	cfg.Log.Level = strings.ToLower(strings.TrimSpace(cfg.Log.Level))
 	cfg.Log.Format = strings.ToLower(strings.TrimSpace(cfg.Log.Format))
 	cfg.Pipeline.Channels = trimSlice(cfg.Pipeline.Channels)
 
-	if cfg.App.DataDir != "" && !filepath.IsAbs(cfg.App.DataDir) {
-		absolutePath, err := filepath.Abs(cfg.App.DataDir)
+	if cfg.App.HomeDir == "" {
+		cfg.App.HomeDir = defaultHomeDir()
+	}
+	if !filepath.IsAbs(cfg.App.HomeDir) {
+		absolutePath, err := filepath.Abs(cfg.App.HomeDir)
 		if err != nil {
-			return fmt.Errorf("resolve data dir %q: %w", cfg.App.DataDir, err)
+			return fmt.Errorf("resolve home dir %q: %w", cfg.App.HomeDir, err)
 		}
+		cfg.App.HomeDir = absolutePath
+	}
+	if cfg.App.DataDir == "" {
+		cfg.App.DataDir = filepath.Join(cfg.App.HomeDir, "data")
+	}
+	if cfg.App.DBPath == "" {
+		cfg.App.DBPath = filepath.Join(cfg.App.DataDir, "echo.db")
+	}
+	if cfg.App.RuntimeDir == "" {
+		cfg.App.RuntimeDir = filepath.Join(cfg.App.HomeDir, "runtime")
+	}
+	if cfg.App.LogsDir == "" {
+		cfg.App.LogsDir = filepath.Join(cfg.App.HomeDir, "logs")
+	}
+	if cfg.NATS.StoreDir == "" {
+		cfg.NATS.StoreDir = filepath.Join(cfg.App.RuntimeDir, "nats")
+	}
 
-		cfg.App.DataDir = absolutePath
+	paths := []*string{
+		&cfg.App.DataDir,
+		&cfg.App.DBPath,
+		&cfg.App.RuntimeDir,
+		&cfg.App.LogsDir,
+		&cfg.NATS.StoreDir,
+	}
+	for _, path := range paths {
+		if *path == "" || filepath.IsAbs(*path) {
+			continue
+		}
+		absolutePath, err := filepath.Abs(*path)
+		if err != nil {
+			return fmt.Errorf("resolve path %q: %w", *path, err)
+		}
+		*path = absolutePath
 	}
 
 	return nil
@@ -291,12 +401,26 @@ func validate(cfg Config) error {
 		errs = append(errs, errors.New("app.name must not be empty"))
 	}
 
+	if cfg.App.HomeDir == "" {
+		errs = append(errs, errors.New("app.home_dir must not be empty"))
+	}
+
 	if cfg.App.DataDir == "" {
 		errs = append(errs, errors.New("app.data_dir must not be empty"))
 	}
 
-	if cfg.App.DataDir != "" && !filepath.IsAbs(cfg.App.DataDir) {
-		errs = append(errs, fmt.Errorf("app.data_dir must be absolute: %q", cfg.App.DataDir))
+	absPaths := map[string]string{
+		"app.home_dir":    cfg.App.HomeDir,
+		"app.data_dir":    cfg.App.DataDir,
+		"app.db_path":     cfg.App.DBPath,
+		"app.runtime_dir": cfg.App.RuntimeDir,
+		"app.logs_dir":    cfg.App.LogsDir,
+		"nats.store_dir":  cfg.NATS.StoreDir,
+	}
+	for label, value := range absPaths {
+		if value != "" && !filepath.IsAbs(value) {
+			errs = append(errs, fmt.Errorf("%s must be absolute: %q", label, value))
+		}
 	}
 
 	if cfg.NATS.URL == "" {
@@ -309,6 +433,12 @@ func validate(cfg Config) error {
 
 	if cfg.NATS.SubjectRoot == "" {
 		errs = append(errs, errors.New("nats.subject_root must not be empty"))
+	}
+	if cfg.NATS.StreamName == "" {
+		errs = append(errs, errors.New("nats.stream_name must not be empty"))
+	}
+	if cfg.NATS.StoreDir == "" {
+		errs = append(errs, errors.New("nats.store_dir must not be empty"))
 	}
 
 	if time.Duration(cfg.NATS.ConnectTimeout) <= 0 {
@@ -342,6 +472,9 @@ func validate(cfg Config) error {
 	if len(cfg.Pipeline.Channels) == 0 {
 		errs = append(errs, errors.New("pipeline.channels must include at least one channel"))
 	}
+	if time.Duration(cfg.Pipeline.ReconcileTimeout) <= 0 {
+		errs = append(errs, errors.New("pipeline.reconcile_timeout must be greater than zero"))
+	}
 
 	if cfg.TTS.Voice == "" {
 		errs = append(errs, errors.New("tts.voice must not be empty"))
@@ -349,6 +482,28 @@ func validate(cfg Config) error {
 
 	if cfg.TTS.MaxQueued <= 0 {
 		errs = append(errs, errors.New("tts.max_queued must be greater than zero"))
+	}
+	switch cfg.TTS.DefaultBackend {
+	case "windows", "google":
+	default:
+		errs = append(errs, fmt.Errorf("tts.default_backend must be windows or google: %q", cfg.TTS.DefaultBackend))
+	}
+	if time.Duration(cfg.TTS.LeaseTTL) <= 0 {
+		errs = append(errs, errors.New("tts.lease_ttl must be greater than zero"))
+	}
+	if time.Duration(cfg.TTS.PollInterval) <= 0 {
+		errs = append(errs, errors.New("tts.poll_interval must be greater than zero"))
+	}
+	switch cfg.Speech.DefaultMode {
+	case "concise", "normal", "heavy":
+	default:
+		errs = append(errs, fmt.Errorf("speech.default_mode must be concise, normal, or heavy: %q", cfg.Speech.DefaultMode))
+	}
+	if cfg.Speech.ConciseMaxChars <= 0 {
+		errs = append(errs, errors.New("speech.concise_max_chars must be greater than zero"))
+	}
+	if cfg.Speech.NormalMaxChars <= 0 {
+		errs = append(errs, errors.New("speech.normal_max_chars must be greater than zero"))
 	}
 
 	if cfg.HTTP.Addr == "" {
@@ -459,15 +614,23 @@ func parseDuration(value string) (Duration, error) {
 }
 
 func defaultDataDir() string {
+	return filepath.Join(defaultHomeDir(), "data")
+}
+
+func defaultHomeDir() string {
 	if executablePath, err := os.Executable(); err == nil {
-		return filepath.Join(filepath.Dir(executablePath), "data")
+		return filepath.Join(filepath.Dir(executablePath), "nexis-echo-home")
+	}
+
+	if localData, err := os.UserCacheDir(); err == nil {
+		return filepath.Join(localData, "NexisEcho")
 	}
 
 	if workingDir, err := os.Getwd(); err == nil {
-		return filepath.Join(workingDir, "data")
+		return filepath.Join(workingDir, "nexis-echo-home")
 	}
 
-	return filepath.Join(".", "data")
+	return filepath.Join(".", "nexis-echo-home")
 }
 
 func bytesTrimSpace(data []byte) []byte {
