@@ -1,0 +1,52 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.crt
+*.cer
+credentials.*
+secrets.*
+
+# Go
+bin/
+dist/
+build/
+out/
+coverage/
+*.test
+*.out
+coverage.out
+.coverprofile
+
+# Node / frontend
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local runtime and caches
+.cache/
+tmp/
+*.log
+*.pid
+*.sock
+*.fifo
+
+# App-local runtime/state directories
+/data/
+/logs/
+/runtime/
